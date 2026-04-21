@@ -26,7 +26,7 @@ Detail for each task: [tasks/plan.md](plan.md). Spec: [SPEC.md](../SPEC.md).
 - [ ] PRD §4, §5 pass.
 
 ## Phase 5 — Polish + ship
-- [ ] **Task 7** — Monospaced digits; subprocess reaping in `applicationWillTerminate`; PRD §6, §7 verified. Verify: full PRD §Acceptance §1–§7.
+- [x] **Task 7** — Monospaced digits; subprocess reaping in `applicationWillTerminate`; PRD §6, §7 verified. Verify: full PRD §Acceptance §1–§7.
 
 ### Checkpoint D — Ship
 - [ ] All 7 acceptance criteria green.

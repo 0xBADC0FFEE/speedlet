@@ -20,6 +20,8 @@ final class StatusItemController: NSObject {
             button.target = self
             button.action = #selector(didClick)
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            // Monospaced digits so the title doesn't shimmy as values change.
+            button.font = NSFont.monospacedDigitSystemFont(ofSize: 0, weight: .regular)
         }
     }
 
