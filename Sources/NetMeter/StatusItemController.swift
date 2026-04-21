@@ -16,16 +16,62 @@ final class StatusItemController: NSObject {
             onExit: { [weak self] in self?.showIdle() }
         )
         showIdle()
-        statusItem.button?.target = self
-        statusItem.button?.action = #selector(didClick)
+        if let button = statusItem.button {
+            button.target = self
+            button.action = #selector(didClick)
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        }
+    }
+
+    func shutdown() {
+        runner.stopAndWait()
     }
 
     @objc private func didClick() {
-        if runner.isRunning {
-            runner.stop()
+        if NSApp.currentEvent?.type == .rightMouseUp {
+            showContextMenu()
         } else {
-            runner.start()
+            toggleRunner()
         }
+    }
+
+    private func toggleRunner() {
+        if runner.isRunning { runner.stop() } else { runner.start() }
+    }
+
+    private func showContextMenu() {
+        statusItem.menu = buildMenu()
+        statusItem.button?.performClick(nil)
+        statusItem.menu = nil
+    }
+
+    private func buildMenu() -> NSMenu {
+        let menu = NSMenu()
+
+        let run = NSMenuItem(title: "Run test", action: #selector(didTapRun), keyEquivalent: "")
+        run.target = self
+        menu.addItem(run)
+
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let about = NSMenuItem(title: "About NetMeter v\(version)", action: nil, keyEquivalent: "")
+        about.isEnabled = false
+        menu.addItem(about)
+
+        menu.addItem(.separator())
+
+        let quit = NSMenuItem(title: "Quit", action: #selector(didTapQuit), keyEquivalent: "q")
+        quit.target = self
+        menu.addItem(quit)
+
+        return menu
+    }
+
+    @objc private func didTapRun() {
+        toggleRunner()
+    }
+
+    @objc private func didTapQuit() {
+        NSApp.terminate(nil)
     }
 
     private func showIdle() {

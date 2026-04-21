@@ -15,4 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         controller = StatusItemController()
     }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        controller?.shutdown()
+    }
 }

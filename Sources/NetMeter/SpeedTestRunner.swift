@@ -76,6 +76,12 @@ final class SpeedTestRunner {
         process?.terminate()
     }
 
+    func stopAndWait() {
+        guard let proc = process else { return }
+        proc.terminate()
+        proc.waitUntilExit()
+    }
+
     private func ingest(_ chunk: String) {
         buffer += chunk
         let ns = buffer as NSString
