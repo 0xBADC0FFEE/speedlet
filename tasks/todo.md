@@ -29,6 +29,6 @@ Detail for each task: [tasks/plan.md](plan.md). Spec: [SPEC.md](../SPEC.md).
 - [x] **Task 7** — Monospaced digits; subprocess reaping in `applicationWillTerminate`; PRD §6, §7 verified. Verify: full PRD §Acceptance §1–§7.
 
 ### Checkpoint D — Ship
-- [ ] All 7 acceptance criteria green.
-- [ ] README written.
-- [ ] Tag `v1.0`.
+- [x] All 7 acceptance criteria green.
+- [x] README written.
+- [x] Tag `v1.0`.
