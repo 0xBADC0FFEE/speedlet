@@ -1,4 +1,4 @@
-# NetMeter
+# Speedlet
 
 Menu bar app that runs `/usr/bin/networkQuality` on click and streams live download Mbps into the menu bar title. Fire-and-forget — no history, no prefs window.
 
@@ -14,9 +14,9 @@ Menu bar app that runs `/usr/bin/networkQuality` on click and streams live downl
 make install
 ```
 
-Builds release, assembles `dist/NetMeter.app`, ad-hoc codesigns, copies to `/Applications`. No Apple Developer account, no notarization.
+Builds release, assembles `dist/Speedlet.app`, ad-hoc codesigns, copies to `/Applications`. No Apple Developer account, no notarization.
 
-To launch: `open /Applications/NetMeter.app` or `make run`.
+To launch: `open /Applications/Speedlet.app` or `make run`.
 
 ## Use
 
@@ -25,14 +25,14 @@ To launch: `open /Applications/NetMeter.app` or `make run`.
 - **Right-click** — menu:
   - `Run test` — same as left-click
   - `Launch at login` — toggle via `SMAppService.mainApp`
-  - `About NetMeter v1.0` — version readout, disabled
+  - `About Speedlet v1.0` — version readout, disabled
   - `Quit` — exits and reaps any running `networkQuality`
 
 ## Uninstall
 
 ```
-killall NetMeter
-rm -rf /Applications/NetMeter.app
+killall Speedlet
+rm -rf /Applications/Speedlet.app
 ```
 
 If `Launch at login` was ever enabled, also remove from **System Settings → General → Login Items & Extensions**.
@@ -45,7 +45,7 @@ If `Launch at login` was ever enabled, also remove from **System Settings → Ge
 
 | Target | What it does |
 |---|---|
-| `make build` | `swift build -c release --arch arm64` + assemble `dist/NetMeter.app` |
+| `make build` | `swift build -c release --arch arm64` + assemble `dist/Speedlet.app` |
 | `make install` | `build` + ad-hoc codesign + copy to `/Applications` |
 | `make run` | `install` + `open` |
 | `make clean` | remove `.build` and `dist` |

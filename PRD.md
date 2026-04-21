@@ -1,9 +1,10 @@
-# NetMeter — PRD
+# Speedlet — PRD
 
 **Date:** 2026-04-21
+**Status:** Shipped — v1.0
 **Target platform:** macOS 13+ (Ventura), Apple Silicon only
-**Bundle ID:** `dev.vawerv.netmeter`
-**App name:** NetMeter
+**Bundle ID:** `dev.vawerv.speedlet`
+**App name:** Speedlet
 
 ## Summary
 
@@ -25,7 +26,7 @@ Fire-and-forget: no history is stored; after completion the result is dropped an
 | State | Menu bar |
 |-----------|----------|
 | Idle | SF Symbol `speedometer` |
-| Running | Integer Mbps (streamed from stdout) — e.g. `"285"` |
+| Running | Integer Mbps (streamed from stdout), monospaced digits — e.g. `"285"` |
 | Done / Stopped / Error | Icon (fire-and-forget) |
 
 ### Interaction
@@ -43,7 +44,7 @@ Fire-and-forget: no history is stored; after completion the result is dropped an
 
 - **Run test** — duplicates left click
 - **Launch at login** ☐ — toggle via `SMAppService.mainApp`
-- **About NetMeter vX.Y** — disabled item with version
+- **About Speedlet vX.Y** — disabled item with version
 - ─────
 - **Quit**
 
@@ -53,37 +54,38 @@ Fire-and-forget: no history is stored; after completion the result is dropped an
 
 - Swift 5.9+
 - AppKit: `NSStatusItem` + `NSMenu` (not `MenuBarExtra` — need separate handlers for left/right click)
-- `Foundation.Process` + `Pipe.readabilityHandler` for subprocess streaming
+- `Foundation.Process` + `openpty(3)` pty slave for live stdout streaming (networkQuality only emits progressive lines when stdout is a tty)
 - `ServiceManagement.SMAppService.mainApp` for autostart
 - Min target: macOS 13.0
 - Arch: `arm64` only
 
 ### Parsing networkQuality
 
-Command: `/usr/bin/networkQuality` (no flags, human-readable format — it already streams incremental values during the run).
+Command: `/usr/bin/networkQuality` (no flags, human-readable format — it already streams incremental values during the run, when stdout is a tty).
 
-Regex on each stdout line: `Downlink: capacity\s+(\d+\.\d+)\s+Mbps`.
-Summary line `Downlink capacity: X.XXX Mbps` — same thing, caught by the same pattern or a separate one.
+Relaxed regex matches both progressive (`Downlink: capacity X Mbps`) and summary (`Downlink capacity: X Mbps`) variants.
 
 ### Info.plist
 
 - `LSUIElement` = `YES` (hide from Dock and Cmd+Tab)
 - `LSMinimumSystemVersion` = `13.0`
-- `CFBundleIdentifier` = `dev.vawerv.netmeter`
+- `CFBundleIdentifier` = `dev.vawerv.speedlet`
+- `CFBundleIconFile` = `AppIcon`
 
 ### Project structure
 
 ```
-netmeter/
+speedlet/
   Package.swift              # SPM executable
   Sources/
-    NetMeter/
-      NetMeterApp.swift      # @main, NSApplicationDelegate
+    Speedlet/
+      SpeedletApp.swift      # @main, NSApplicationDelegate
       StatusItemController.swift
-      SpeedTestRunner.swift  # wraps Process, emits Mbps updates
+      SpeedTestRunner.swift  # wraps Process + pty, emits Mbps updates
       LaunchAtLogin.swift    # SMAppService wrapper
   Resources/
     Info.plist
+    AppIcon.icns
   Makefile
   README.md
   PRD.md
@@ -96,21 +98,21 @@ netmeter/
 1. `swift build -c release --arch arm64`
 2. Assemble the bundle manually:
    ```
-   NetMeter.app/
+   Speedlet.app/
      Contents/
        Info.plist
-       MacOS/NetMeter   (copied from .build/release/NetMeter)
-       Resources/
+       MacOS/Speedlet   (copied from .build/release/Speedlet)
+       Resources/AppIcon.icns
    ```
-3. `codesign --force --deep --sign - NetMeter.app` (ad-hoc, `-s -`)
-4. `cp -R NetMeter.app /Applications/`
-5. `open /Applications/NetMeter.app`
+3. `codesign --force --deep --sign - Speedlet.app` (ad-hoc, `-s -`)
+4. `cp -R Speedlet.app /Applications/`
+5. `open /Applications/Speedlet.app`
 
 Gatekeeper does not trigger because the bundle is not tagged `com.apple.quarantine` (it was not downloaded from the internet).
 
 ### Makefile targets
 
-- `make build` — assemble the bundle into `./dist/NetMeter.app`
+- `make build` — assemble the bundle into `./dist/Speedlet.app`
 - `make install` — build + codesign + cp to /Applications
 - `make run` — install + open
 - `make clean` — rm -rf .build dist
@@ -129,7 +131,7 @@ Gatekeeper does not trigger because the bundle is not tagged `com.apple.quaranti
 
 ## Acceptance criteria
 
-1. `make install` on a clean system (Apple Silicon, macOS 13+) → `/Applications/NetMeter.app` launches, `speedometer` icon visible in menu bar.
+1. `make install` on a clean system (Apple Silicon, macOS 13+) → `/Applications/Speedlet.app` launches, `speedometer` icon visible in menu bar.
 2. Left click — icon replaced with a live integer, updating every ~1–2s during the networkQuality run.
 3. Second left click during a run — subprocess terminates within ≤500ms, icon returns.
 4. Right click — shows 4 menu items, all functional.
