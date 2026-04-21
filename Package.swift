@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "NetMeter",
+    name: "Speedlet",
     platforms: [.macOS(.v13)],
     targets: [
         .executableTarget(
-            name: "NetMeter",
-            path: "Sources/NetMeter"
+            name: "Speedlet",
+            path: "Sources/Speedlet"
         ),
     ]
 )

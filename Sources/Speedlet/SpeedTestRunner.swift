@@ -28,7 +28,7 @@ final class SpeedTestRunner {
         // lines when its stdout is a tty. Piped stdout gives a single end-of-run
         // summary instead — useless for live updates. So give it a pty slave.
         guard openpty(&master, &slave, nil, nil, nil) == 0 else {
-            NSLog("NetMeter: openpty failed (errno \(errno))")
+            NSLog("Speedlet: openpty failed (errno \(errno))")
             DispatchQueue.main.async { self.onExit() }
             return
         }
@@ -61,7 +61,7 @@ final class SpeedTestRunner {
         do {
             try proc.run()
         } catch {
-            NSLog("NetMeter: failed to start networkQuality: \(error)")
+            NSLog("Speedlet: failed to start networkQuality: \(error)")
             close(slave)
             DispatchQueue.main.async { self.onExit() }
             return

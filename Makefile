@@ -1,5 +1,5 @@
-APP_NAME    := NetMeter
-BUNDLE_ID   := dev.vawerv.netmeter
+APP_NAME    := Speedlet
+BUNDLE_ID   := dev.vawerv.speedlet
 BUILD_DIR   := .build/release
 APP_BUNDLE  := dist/$(APP_NAME).app
 INSTALL_DIR := /Applications

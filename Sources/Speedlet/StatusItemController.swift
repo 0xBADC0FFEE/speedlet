@@ -8,7 +8,7 @@ final class StatusItemController: NSObject {
 
     override init() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        idleIcon = NSImage(systemSymbolName: "speedometer", accessibilityDescription: "NetMeter")
+        idleIcon = NSImage(systemSymbolName: "speedometer", accessibilityDescription: "Speedlet")
         idleIcon?.isTemplate = true
         super.init()
         runner = SpeedTestRunner(
@@ -60,7 +60,7 @@ final class StatusItemController: NSObject {
         menu.addItem(launch)
 
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
-        let about = NSMenuItem(title: "About NetMeter v\(version)", action: nil, keyEquivalent: "")
+        let about = NSMenuItem(title: "About Speedlet v\(version)", action: nil, keyEquivalent: "")
         about.isEnabled = false
         menu.addItem(about)
 

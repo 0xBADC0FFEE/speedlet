@@ -15,7 +15,7 @@ enum LaunchAtLogin {
                 try service.register()
             }
         } catch {
-            NSLog("NetMeter: SMAppService toggle failed: \(error.localizedDescription)")
+            NSLog("Speedlet: SMAppService toggle failed: \(error.localizedDescription)")
         }
     }
 }
