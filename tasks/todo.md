@@ -20,7 +20,7 @@ Detail for each task: [tasks/plan.md](plan.md). Spec: [SPEC.md](../SPEC.md).
 
 ## Phase 4 — Menu + autostart
 - [x] **Task 5** — Right-click `NSMenu`: `Run test`, disabled `About v1.0`, separator, `Quit`. Verify: all 3 items functional; `Quit` kills subprocess.
-- [ ] **Task 6** — `LaunchAtLogin` via `SMAppService.mainApp`; checkmark refresh on `menuWillOpen`. Verify: PRD §4, §5 (survives reboot).
+- [x] **Task 6** — `LaunchAtLogin` via `SMAppService.mainApp`; checkmark refresh on `menuWillOpen`. Verify: PRD §4, §5 (survives reboot).
 
 ### Checkpoint C
 - [ ] PRD §4, §5 pass.

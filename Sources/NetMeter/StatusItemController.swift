@@ -52,6 +52,11 @@ final class StatusItemController: NSObject {
         run.target = self
         menu.addItem(run)
 
+        let launch = NSMenuItem(title: "Launch at login", action: #selector(didTapLaunchAtLogin), keyEquivalent: "")
+        launch.target = self
+        launch.state = LaunchAtLogin.isEnabled ? .on : .off
+        menu.addItem(launch)
+
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let about = NSMenuItem(title: "About NetMeter v\(version)", action: nil, keyEquivalent: "")
         about.isEnabled = false
@@ -68,6 +73,10 @@ final class StatusItemController: NSObject {
 
     @objc private func didTapRun() {
         toggleRunner()
+    }
+
+    @objc private func didTapLaunchAtLogin() {
+        LaunchAtLogin.toggle()
     }
 
     @objc private func didTapQuit() {
