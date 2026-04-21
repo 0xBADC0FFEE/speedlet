@@ -4,7 +4,7 @@ Detail for each task: [tasks/plan.md](plan.md). Spec: [SPEC.md](../SPEC.md).
 
 ## Phase 1 — Installable shell
 - [x] **Task 1** — SPM skeleton (`Package.swift`, empty `@main` AppDelegate). Verify: `swift build -c release --arch arm64` succeeds; binary stays alive.
-- [ ] **Task 2** — Makefile + Info.plist; `make install` copies signed `.app` to `/Applications`. Verify: `codesign -dv` shows ad-hoc sig; no Dock icon.
+- [x] **Task 2** — Makefile + Info.plist; `make install` copies signed `.app` to `/Applications`. Verify: `codesign -dv` shows ad-hoc sig; no Dock icon.
 
 ### Checkpoint A
 - [ ] Foundation review (installable shell works).
