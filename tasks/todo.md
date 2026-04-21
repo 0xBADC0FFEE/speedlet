@@ -10,7 +10,7 @@ Detail for each task: [tasks/plan.md](plan.md). Spec: [SPEC.md](../SPEC.md).
 - [ ] Foundation review (installable shell works).
 
 ## Phase 2 — Menu bar presence
-- [ ] **Task 3** — `StatusItemController` with idle `speedometer` template icon; left-click stub. Verify: icon visible after `make run`; click no-op doesn't crash.
+- [x] **Task 3** — `StatusItemController` with idle `speedometer` template icon; left-click stub. Verify: icon visible after `make run`; click no-op doesn't crash.
 
 ## Phase 3 — Speed test vertical slice
 - [ ] **Task 4** — `SpeedTestRunner` + click-to-start/stop; live Mbps in title; auto-revert on exit. Verify: PRD §1–§3; no orphan subprocess after stop.

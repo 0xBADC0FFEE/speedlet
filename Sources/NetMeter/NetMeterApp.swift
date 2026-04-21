@@ -2,6 +2,8 @@ import AppKit
 
 @main
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var controller: StatusItemController?
+
     static func main() {
         let app = NSApplication.shared
         let delegate = AppDelegate()
@@ -11,5 +13,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        controller = StatusItemController()
     }
 }
