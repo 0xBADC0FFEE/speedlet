@@ -25,7 +25,7 @@ To launch: `open /Applications/Speedlet.app` or `make run`.
 - **Right-click** — menu:
   - `Run test` — same as left-click
   - `Launch at login` — toggle via `SMAppService.mainApp`
-  - `About Speedlet v1.0` — version readout, disabled
+  - `About Speedlet` — version readout, disabled
   - `Quit` — exits and reaps any running `networkQuality`
 
 ## Uninstall

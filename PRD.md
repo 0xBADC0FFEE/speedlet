@@ -1,7 +1,7 @@
 # Speedlet — PRD
 
 **Date:** 2026-04-21
-**Status:** Shipped — v1.0
+**Status:** Shipped — v1.1
 **Target platform:** macOS 15+ (Sequoia), Apple Silicon only
 **Bundle ID:** `dev.vawerv.speedlet`
 **App name:** Speedlet
