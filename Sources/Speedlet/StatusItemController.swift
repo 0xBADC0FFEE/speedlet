@@ -1,21 +1,23 @@
 import AppKit
+import Symbols
 
 @MainActor
 final class StatusItemController: NSObject {
     private let statusItem: NSStatusItem
     private let idleIcon: NSImage?
+    private let startingIcon: NSImage?
+    private var spinner: NSImageView?
     private var runner: SpeedTestRunner!
 
     override init() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         idleIcon = NSImage(systemSymbolName: "speedometer", accessibilityDescription: "Speedlet")
         idleIcon?.isTemplate = true
+        startingIcon = NSImage(systemSymbolName: "circle.dotted", accessibilityDescription: "Speedlet — starting")
+        startingIcon?.isTemplate = true
         super.init()
-        runner = SpeedTestRunner(
-            onMbps: { [weak self] mbps in self?.showMbps(mbps) },
-            onExit: { [weak self] in self?.showIdle() }
-        )
-        showIdle()
+        runner = SpeedTestRunner(onState: { [weak self] state in self?.apply(state) })
+        apply(.idle)
         if let button = statusItem.button {
             button.target = self
             button.action = #selector(didClick)
@@ -85,15 +87,59 @@ final class StatusItemController: NSObject {
         NSApp.terminate(nil)
     }
 
+    private func apply(_ state: SpeedTestState) {
+        switch state {
+        case .idle:    showIdle()
+        case .starting: showStarting()
+        case .running(let mbps): showMbps(mbps)
+        }
+    }
+
     private func showIdle() {
-        guard let button = statusItem.button else { return }
-        button.image = idleIcon
-        button.title = ""
+        render(image: idleIcon, title: "", spinning: false)
+    }
+
+    private func showStarting() {
+        // button.image stays set to a real SF Symbol so NSStatusBarButton sizes
+        // identically to idle; contentTintColor=.clear hides it under the overlay.
+        render(image: startingIcon, title: "", spinning: true)
     }
 
     private func showMbps(_ mbps: Int) {
+        render(image: nil, title: "\(mbps)", spinning: false)
+    }
+
+    private func render(image: NSImage?, title: String, spinning: Bool) {
         guard let button = statusItem.button else { return }
-        button.image = nil
-        button.title = "\(mbps)"
+        removeSpinner()
+        button.contentTintColor = spinning ? .clear : nil
+        button.image = image
+        button.title = title
+        if spinning, let icon = image { installSpinner(in: button, icon: icon) }
+    }
+
+    private func installSpinner(in button: NSStatusBarButton, icon: NSImage) {
+        button.layoutSubtreeIfNeeded()
+        // NSButtonCell positions button.image so the image's alignmentRect midpoint
+        // sits at the cell's imageRect midpoint; mirror that for the overlay.
+        let cellRect = (button.cell as? NSButtonCell)?.imageRect(forBounds: button.bounds) ?? button.bounds
+        let ar = icon.alignmentRect
+        let iv = NSImageView(frame: NSRect(
+            x: cellRect.midX - ar.midX,
+            y: cellRect.midY - ar.midY,
+            width: icon.size.width,
+            height: icon.size.height
+        ))
+        iv.image = icon
+        iv.imageScaling = .scaleNone
+        iv.imageAlignment = .alignBottomLeft
+        button.addSubview(iv)
+        iv.addSymbolEffect(.rotate, options: .repeat(.continuous))
+        spinner = iv
+    }
+
+    private func removeSpinner() {
+        spinner?.removeFromSuperview()
+        spinner = nil
     }
 }

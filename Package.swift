@@ -1,13 +1,14 @@
-// swift-tools-version:5.9
+// swift-tools-version:6.0
 import PackageDescription
 
 let package = Package(
     name: "Speedlet",
-    platforms: [.macOS(.v13)],
+    platforms: [.macOS(.v15)],
     targets: [
         .executableTarget(
             name: "Speedlet",
             path: "Sources/Speedlet"
         ),
-    ]
+    ],
+    swiftLanguageModes: [.v5]
 )

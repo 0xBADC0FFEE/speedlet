@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-21
 **Status:** Shipped — v1.0
-**Target platform:** macOS 13+ (Ventura), Apple Silicon only
+**Target platform:** macOS 15+ (Sequoia), Apple Silicon only
 **Bundle ID:** `dev.vawerv.speedlet`
 **App name:** Speedlet
 
@@ -26,6 +26,7 @@ Fire-and-forget: no history is stored; after completion the result is dropped an
 | State | Menu bar |
 |-----------|----------|
 | Idle | SF Symbol `speedometer` |
+| Starting | SF Symbol `circle.dotted` with `.rotate` effect (continuous) — between Start and first mbps line (~10–15s) |
 | Running | Integer Mbps (streamed from stdout), monospaced digits — e.g. `"285"` |
 | Done / Stopped / Error | Icon (fire-and-forget) |
 
@@ -33,8 +34,8 @@ Fire-and-forget: no history is stored; after completion the result is dropped an
 
 | Event | Action |
 |---------|----------|
-| Left click (idle) | Launch `networkQuality` subprocess, parse stdout |
-| Left click (running) | SIGTERM subprocess, revert to icon |
+| Left click (idle) | Launch `networkQuality` subprocess, show spinner, parse stdout |
+| Left click (starting/running) | SIGTERM subprocess, revert to icon |
 | Right click | NSMenu with items (see below) |
 | Subprocess exit (success) | Revert to icon |
 | Subprocess exit (non-zero) | Revert to icon (silent) |
@@ -56,7 +57,7 @@ Fire-and-forget: no history is stored; after completion the result is dropped an
 - AppKit: `NSStatusItem` + `NSMenu` (not `MenuBarExtra` — need separate handlers for left/right click)
 - `Foundation.Process` + `openpty(3)` pty slave for live stdout streaming (networkQuality only emits progressive lines when stdout is a tty)
 - `ServiceManagement.SMAppService.mainApp` for autostart
-- Min target: macOS 13.0
+- Min target: macOS 15.0 (required for `.rotate` symbol effect on the starting spinner)
 - Arch: `arm64` only
 
 ### Parsing networkQuality
@@ -68,7 +69,7 @@ Relaxed regex matches both progressive (`Downlink: capacity X Mbps`) and summary
 ### Info.plist
 
 - `LSUIElement` = `YES` (hide from Dock and Cmd+Tab)
-- `LSMinimumSystemVersion` = `13.0`
+- `LSMinimumSystemVersion` = `15.0`
 - `CFBundleIdentifier` = `dev.vawerv.speedlet`
 - `CFBundleIconFile` = `AppIcon`
 

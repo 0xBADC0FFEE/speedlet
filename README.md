@@ -5,8 +5,8 @@ Menu bar app that runs `/usr/bin/networkQuality` on click and streams live downl
 ## Requirements
 
 - Apple Silicon mac
-- macOS 13+
-- Swift 5.9+ toolchain (Xcode 15 CLT or full Xcode)
+- macOS 15+ (Sequoia — required for the `.rotate` symbol effect on the starting spinner)
+- Swift 5.9+ toolchain (Xcode 16 CLT or full Xcode)
 
 ## Install
 
@@ -20,7 +20,7 @@ To launch: `open /Applications/Speedlet.app` or `make run`.
 
 ## Use
 
-- **Left-click** the speedometer icon — starts the test. Title flips to live Mbps, updating every ~1s. Test runs ~10s then auto-reverts to icon.
+- **Left-click** the speedometer icon — starts the test. Icon flips to a rotating `circle.dotted` spinner until the first measurement (~10–15s), then to live Mbps updating every ~1s. Test runs ~10s more then auto-reverts to icon.
 - **Left-click again mid-test** — aborts, reverts within 500 ms.
 - **Right-click** — menu:
   - `Run test` — same as left-click

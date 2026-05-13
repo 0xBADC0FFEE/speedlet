@@ -1,20 +1,24 @@
 import Foundation
 import Darwin
 
+enum SpeedTestState {
+    case idle
+    case starting
+    case running(Int)
+}
+
 final class SpeedTestRunner {
     private var process: Process?
     private var masterHandle: FileHandle?
     private var buffer = ""
-    private let onMbps: (Int) -> Void
-    private let onExit: () -> Void
+    private let onState: (SpeedTestState) -> Void
 
     private static let downlinkRegex = try! NSRegularExpression(
         pattern: #"Downlink:?\s*capacity:?\s+([\d.]+)\s+Mbps"#
     )
 
-    init(onMbps: @escaping (Int) -> Void, onExit: @escaping () -> Void) {
-        self.onMbps = onMbps
-        self.onExit = onExit
+    init(onState: @escaping (SpeedTestState) -> Void) {
+        self.onState = onState
     }
 
     var isRunning: Bool { process != nil }
@@ -29,7 +33,7 @@ final class SpeedTestRunner {
         // summary instead — useless for live updates. So give it a pty slave.
         guard openpty(&master, &slave, nil, nil, nil) == 0 else {
             NSLog("Speedlet: openpty failed (errno \(errno))")
-            DispatchQueue.main.async { self.onExit() }
+            DispatchQueue.main.async { self.onState(.idle) }
             return
         }
 
@@ -54,7 +58,7 @@ final class SpeedTestRunner {
                 self?.process = nil
                 self?.masterHandle = nil
                 self?.buffer = ""
-                self?.onExit()
+                self?.onState(.idle)
             }
         }
 
@@ -63,13 +67,14 @@ final class SpeedTestRunner {
         } catch {
             NSLog("Speedlet: failed to start networkQuality: \(error)")
             close(slave)
-            DispatchQueue.main.async { self.onExit() }
+            DispatchQueue.main.async { self.onState(.idle) }
             return
         }
 
         close(slave)
         self.process = proc
         self.masterHandle = masterHandle
+        DispatchQueue.main.async { self.onState(.starting) }
     }
 
     func stop() {
@@ -90,7 +95,7 @@ final class SpeedTestRunner {
               let valueRange = Range(last.range(at: 1), in: buffer),
               let value = Double(buffer[valueRange]) else { return }
         let mbps = Int(value.rounded())
-        DispatchQueue.main.async { self.onMbps(mbps) }
+        DispatchQueue.main.async { self.onState(.running(mbps)) }
         let lastEnd = last.range.upperBound
         if lastEnd <= ns.length {
             buffer = ns.substring(from: lastEnd)
