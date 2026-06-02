@@ -12,6 +12,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     private let menu = NSMenu()
     private let geoItem = NSMenuItem()
+    private let geoRow = GeoRowView()
     private let launchItem = NSMenuItem(title: "Launch at login", action: nil, keyEquivalent: "")
     private let geoClient = GeoClient()
     private var geoTask: Task<Void, Never>?
@@ -63,26 +64,40 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.delegate = self
 
         geoItem.isEnabled = false
+        geoItem.view = geoRow
         menu.addItem(geoItem)
         menu.addItem(.separator())
 
+        // The geo row carries a leading flag/spinner at the state-image gutter
+        // (text at x=22). AppKit only reserves that gutter while some item shows
+        // a state image, so with "Launch at login" off the native rows collapse
+        // text to x=14 and the columns disagree. A transparent off-state image on
+        // every plain row keeps the gutter reserved → all rows indent to x=22.
+        // Width matches the rendered checkmark (13pt) so the reserved gutter, and
+        // thus the native text column, lands at x=22 — the geo row's text column.
+        let gutter = NSImage(size: NSSize(width: 13, height: 13))
+
         let run = NSMenuItem(title: "Run test", action: #selector(didTapRun), keyEquivalent: "")
         run.target = self
+        run.offStateImage = gutter
         menu.addItem(run)
 
         launchItem.action = #selector(didTapLaunchAtLogin)
         launchItem.target = self
+        launchItem.offStateImage = gutter
         menu.addItem(launchItem)
 
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let about = NSMenuItem(title: "About Speedlet v\(version)", action: nil, keyEquivalent: "")
         about.isEnabled = false
+        about.offStateImage = gutter
         menu.addItem(about)
 
         menu.addItem(.separator())
 
         let quit = NSMenuItem(title: "Quit", action: #selector(didTapQuit), keyEquivalent: "q")
         quit.target = self
+        quit.offStateImage = gutter
         menu.addItem(quit)
     }
 
@@ -90,7 +105,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     func menuWillOpen(_ menu: NSMenu) {
         launchItem.state = LaunchAtLogin.isEnabled ? .on : .off
-        setGeoRow(flag: nil, text: "…")
+        geoRow.showLoading()
         // No cache: every open starts a fresh request. Live-update the row
         // when it returns (NSMenu reflects item changes while open).
         geoTask?.cancel()
@@ -99,9 +114,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             let info = await self.geoClient.fetch()
             if Task.isCancelled { return }
             if let info {
-                self.setGeoRow(flag: flagEmoji(for: info.countryCode), text: "\(info.countryName) · \(info.ipAddress)")
+                self.geoRow.show(flag: flagEmoji(for: info.countryCode), text: "\(info.countryName) · \(info.ipAddress)")
             } else {
-                self.setGeoRow(flag: nil, text: "Unavailable")
+                self.geoRow.show(flag: nil, text: "Unavailable")
             }
         }
     }
@@ -109,32 +124,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     func menuDidClose(_ menu: NSMenu) {
         geoTask?.cancel()
         geoTask = nil
-    }
-
-    // Flag rides the state-image gutter (where the checkmark sits) so the text
-    // column lines up with the other items. The slot is always a fixed flag-
-    // sized image (transparent while loading) so the gutter doesn't widen when
-    // the flag arrives mid-open.
-    private func setGeoRow(flag: String?, text: String) {
-        geoItem.title = text
-        geoItem.onStateImage = Self.flagSlot(flag)
-        geoItem.state = .on
-    }
-
-    private static let menuFont = NSFont.menuFont(ofSize: 0)
-
-    // Width of a regional-indicator pair — the gutter is pinned to this.
-    private static let flagSlotSize: NSSize = {
-        let s = ("🇳🇱" as NSString).size(withAttributes: [.font: menuFont])
-        return NSSize(width: ceil(s.width), height: ceil(s.height))
-    }()
-
-    private static func flagSlot(_ flag: String?) -> NSImage {
-        let image = NSImage(size: flagSlotSize)
-        image.lockFocus()
-        (flag ?? "").draw(at: .zero, withAttributes: [.font: menuFont])
-        image.unlockFocus()
-        return image
+        geoRow.stopSpinner()
     }
 
     @objc private func didTapRun() {
@@ -204,4 +194,77 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         spinner?.removeFromSuperview()
         spinner = nil
     }
+}
+
+// Single view backing the geo row in both states, so the row never changes
+// height: only the leading icon swaps in place (spinner ⇄ flag, sharing one
+// center so one morphs into the other) and the text updates. Insets line the
+// icon up with the state-image gutter and the text with the items below.
+@MainActor
+private final class GeoRowView: NSView {
+    private let spinner = NSProgressIndicator()
+    private let flag = NSTextField(labelWithString: "")
+    private let label = NSTextField(labelWithString: "")
+    private static let font = NSFont.menuFont(ofSize: 0)
+
+    // Matched to the live native layout (measured via the menu view tree): a
+    // checkmark sits at x=9 w=13 (centre 15.5) and titles indent to x=22 when a
+    // state image is present; native rows are 24pt tall. The geo row carries an
+    // icon (flag/spinner), so it mirrors that checkmarked layout exactly.
+    private let iconCenterX: CGFloat = 15.5   // = native checkmark centre
+    private let textLeading: CGFloat = 24     // → label frame x≈22 (2pt cell inset)
+    private let rowHeight: CGFloat = 24
+
+    init() {
+        super.init(frame: NSRect(x: 0, y: 0, width: 200, height: 24))
+        translatesAutoresizingMaskIntoConstraints = false
+
+        spinner.style = .spinning
+        spinner.controlSize = .small
+        spinner.isIndeterminate = true
+        spinner.isDisplayedWhenStopped = false
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+
+        flag.font = Self.font
+        flag.alignment = .center
+        flag.translatesAutoresizingMaskIntoConstraints = false
+
+        label.font = Self.font
+        label.textColor = .disabledControlTextColor   // matches the disabled row look
+        label.translatesAutoresizingMaskIntoConstraints = false
+
+        addSubview(spinner)
+        addSubview(flag)
+        addSubview(label)
+
+        NSLayoutConstraint.activate([
+            heightAnchor.constraint(equalToConstant: rowHeight),
+            spinner.centerXAnchor.constraint(equalTo: leadingAnchor, constant: iconCenterX),
+            spinner.centerYAnchor.constraint(equalTo: centerYAnchor),
+            spinner.widthAnchor.constraint(equalToConstant: 14),
+            spinner.heightAnchor.constraint(equalToConstant: 14),
+            flag.centerXAnchor.constraint(equalTo: leadingAnchor, constant: iconCenterX),
+            flag.centerYAnchor.constraint(equalTo: centerYAnchor),
+            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: textLeading),
+            label.centerYAnchor.constraint(equalTo: centerYAnchor),
+            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -14),
+        ])
+    }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    func showLoading() {
+        flag.isHidden = true
+        spinner.startAnimation(nil)   // isDisplayedWhenStopped=false reveals it only while spinning
+        label.stringValue = "Checking…"
+    }
+
+    func show(flag emoji: String?, text line: String) {
+        spinner.stopAnimation(nil)
+        flag.stringValue = emoji ?? ""
+        flag.isHidden = (emoji == nil)
+        label.stringValue = line
+    }
+
+    func stopSpinner() { spinner.stopAnimation(nil) }
 }

@@ -43,11 +43,20 @@ Fire-and-forget: no history is stored; after completion the result is dropped an
 
 ### Right-click menu
 
+- **{flag} {country} · {ip}** — disabled top row, current public IP + country (VPN check); fetched fresh on every menu open. While in flight: standard macOS spinner + `Checking…`, replaced in place when the lookup lands (menu stays open). On failure/timeout: `Unavailable`.
+- ─────
 - **Run test** — duplicates left click
 - **Launch at login** ☐ — toggle via `SMAppService.mainApp`
 - **About Speedlet vX.Y** — disabled item with version
 - ─────
 - **Quit**
+
+### IP / country lookup
+
+- `GET https://free.freeipapi.com/api/json` (no IP param → egress IP), no key, HTTPS. 5s timeout. No cache — each open is a fresh request, cancelled on menu close.
+- Decode `ipAddress` / `countryName` / `countryCode`; flag emoji derived locally from the code via regional-indicator arithmetic (globe fallback). `isProxy` ignored.
+- Loading row uses `NSProgressIndicator` (`.spinning`) in a custom menu-item view; its CoreAnimation keeps turning in the menu's event-tracking run loop mode.
+- **Privacy:** opening the menu issues one outbound HTTPS request to `free.freeipapi.com` carrying the egress IP.
 
 ## Technical decisions
 
@@ -84,6 +93,12 @@ speedlet/
       StatusItemController.swift
       SpeedTestRunner.swift  # wraps Process + pty, emits Mbps updates
       LaunchAtLogin.swift    # SMAppService wrapper
+      GeoClient.swift        # freeipapi lookup (URLSession)
+    SpeedletCore/
+      Geo.swift              # GeoInfo + pure flag/displayLine helpers (tested)
+  Tests/
+    SpeedletCoreTests/
+      GeoTests.swift
   Resources/
     Info.plist
     AppIcon.icns
