@@ -38,7 +38,7 @@ func flagFallsBackForInvalidCode(_ code: String) {
     #expect(flagEmoji(for: code) == fallbackFlag)
 }
 
-@Test func displayLineAssemblesWithMiddleDot() {
+@Test func detailLineAssemblesWithMiddleDot() {
     let info = GeoInfo(ipAddress: "203.0.113.7", countryName: "Netherlands", countryCode: "NL")
-    #expect(displayLine(info) == "🇳🇱 Netherlands · 203.0.113.7")
+    #expect(detailLine(info) == "Netherlands · 203.0.113.7")
 }

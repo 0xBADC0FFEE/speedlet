@@ -33,7 +33,8 @@ public func flagEmoji(for countryCode: String) -> String {
     return String(view)
 }
 
-/// Assemble the disabled top row: `{flag} {country} · {ip}` (middle-dot separator).
-public func displayLine(_ info: GeoInfo) -> String {
-    "\(flagEmoji(for: info.countryCode)) \(info.countryName) · \(info.ipAddress)"
+/// Text half of the geo row: `{country} · {ip}` (middle-dot separator). The
+/// flag renders separately in the row's icon gutter, so it's not included here.
+public func detailLine(_ info: GeoInfo) -> String {
+    "\(info.countryName) · \(info.ipAddress)"
 }

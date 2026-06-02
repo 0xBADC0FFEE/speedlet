@@ -114,7 +114,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             let info = await self.geoClient.fetch()
             if Task.isCancelled { return }
             if let info {
-                self.geoRow.show(flag: flagEmoji(for: info.countryCode), text: "\(info.countryName) · \(info.ipAddress)")
+                self.geoRow.show(flag: flagEmoji(for: info.countryCode), text: detailLine(info))
             } else {
                 self.geoRow.show(flag: nil, text: "Unavailable")
             }

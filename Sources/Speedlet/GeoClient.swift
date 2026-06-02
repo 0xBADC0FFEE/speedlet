@@ -8,6 +8,7 @@ import SpeedletCore
 /// menu closes the caller cancels its Task, aborting the in-flight request.
 struct GeoClient {
     private let endpoint = URL(string: "https://free.freeipapi.com/api/json")!
+    private let decoder = JSONDecoder()
 
     func fetch() async -> GeoInfo? {
         var request = URLRequest(url: endpoint)
@@ -15,7 +16,7 @@ struct GeoClient {
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
-            return try JSONDecoder().decode(GeoInfo.self, from: data)
+            return try decoder.decode(GeoInfo.self, from: data)
         } catch {
             return nil
         }
