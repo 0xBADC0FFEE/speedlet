@@ -1,13 +1,20 @@
 import AppKit
 import Symbols
+import SpeedletCore
 
 @MainActor
-final class StatusItemController: NSObject {
+final class StatusItemController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
     private let idleIcon: NSImage?
     private let startingIcon: NSImage?
     private var spinner: NSImageView?
     private var runner: SpeedTestRunner!
+
+    private let menu = NSMenu()
+    private let geoItem = NSMenuItem()
+    private let launchItem = NSMenuItem(title: "Launch at login", action: nil, keyEquivalent: "")
+    private let geoClient = GeoClient()
+    private var geoTask: Task<Void, Never>?
 
     override init() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -17,6 +24,7 @@ final class StatusItemController: NSObject {
         startingIcon?.isTemplate = true
         super.init()
         runner = SpeedTestRunner(onState: { [weak self] state in self?.apply(state) })
+        buildMenu()
         apply(.idle)
         if let button = statusItem.button {
             button.target = self
@@ -44,22 +52,27 @@ final class StatusItemController: NSObject {
     }
 
     private func showContextMenu() {
-        statusItem.menu = buildMenu()
+        // The menu carries an NSMenuDelegate; menuWillOpen drives the geo fetch.
+        // Attach for this click only so left-click keeps toggling the runner.
+        statusItem.menu = menu
         statusItem.button?.performClick(nil)
         statusItem.menu = nil
     }
 
-    private func buildMenu() -> NSMenu {
-        let menu = NSMenu()
+    private func buildMenu() {
+        menu.delegate = self
+
+        geoItem.isEnabled = false
+        menu.addItem(geoItem)
+        menu.addItem(.separator())
 
         let run = NSMenuItem(title: "Run test", action: #selector(didTapRun), keyEquivalent: "")
         run.target = self
         menu.addItem(run)
 
-        let launch = NSMenuItem(title: "Launch at login", action: #selector(didTapLaunchAtLogin), keyEquivalent: "")
-        launch.target = self
-        launch.state = LaunchAtLogin.isEnabled ? .on : .off
-        menu.addItem(launch)
+        launchItem.action = #selector(didTapLaunchAtLogin)
+        launchItem.target = self
+        menu.addItem(launchItem)
 
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let about = NSMenuItem(title: "About Speedlet v\(version)", action: nil, keyEquivalent: "")
@@ -71,8 +84,57 @@ final class StatusItemController: NSObject {
         let quit = NSMenuItem(title: "Quit", action: #selector(didTapQuit), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
+    }
 
-        return menu
+    // MARK: - NSMenuDelegate
+
+    func menuWillOpen(_ menu: NSMenu) {
+        launchItem.state = LaunchAtLogin.isEnabled ? .on : .off
+        setGeoRow(flag: nil, text: "…")
+        // No cache: every open starts a fresh request. Live-update the row
+        // when it returns (NSMenu reflects item changes while open).
+        geoTask?.cancel()
+        geoTask = Task { [weak self] in
+            guard let self else { return }
+            let info = await self.geoClient.fetch()
+            if Task.isCancelled { return }
+            if let info {
+                self.setGeoRow(flag: flagEmoji(for: info.countryCode), text: "\(info.countryName) · \(info.ipAddress)")
+            } else {
+                self.setGeoRow(flag: nil, text: "Unavailable")
+            }
+        }
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        geoTask?.cancel()
+        geoTask = nil
+    }
+
+    // Flag rides the state-image gutter (where the checkmark sits) so the text
+    // column lines up with the other items. The slot is always a fixed flag-
+    // sized image (transparent while loading) so the gutter doesn't widen when
+    // the flag arrives mid-open.
+    private func setGeoRow(flag: String?, text: String) {
+        geoItem.title = text
+        geoItem.onStateImage = Self.flagSlot(flag)
+        geoItem.state = .on
+    }
+
+    private static let menuFont = NSFont.menuFont(ofSize: 0)
+
+    // Width of a regional-indicator pair — the gutter is pinned to this.
+    private static let flagSlotSize: NSSize = {
+        let s = ("🇳🇱" as NSString).size(withAttributes: [.font: menuFont])
+        return NSSize(width: ceil(s.width), height: ceil(s.height))
+    }()
+
+    private static func flagSlot(_ flag: String?) -> NSImage {
+        let image = NSImage(size: flagSlotSize)
+        image.lockFocus()
+        (flag ?? "").draw(at: .zero, withAttributes: [.font: menuFont])
+        image.unlockFocus()
+        return image
     }
 
     @objc private func didTapRun() {

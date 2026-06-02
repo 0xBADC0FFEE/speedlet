@@ -5,7 +5,19 @@ APP_BUNDLE  := dist/$(APP_NAME).app
 INSTALL_DIR := /Applications
 INSTALLED   := $(INSTALL_DIR)/$(APP_NAME).app
 
-.PHONY: build install run clean
+# Swift Testing ships in the Command Line Tools as a framework, not on the
+# default search/rpath. Point swiftpm at it so `make test` works sans Xcode.
+CLT_FW  := /Library/Developer/CommandLineTools/Library/Developer/Frameworks
+CLT_LIB := /Library/Developer/CommandLineTools/Library/Developer/usr/lib
+TEST_FLAGS := -Xswiftc -F -Xswiftc $(CLT_FW) \
+              -Xlinker -F -Xlinker $(CLT_FW) \
+              -Xlinker -rpath -Xlinker $(CLT_FW) \
+              -Xlinker -rpath -Xlinker $(CLT_LIB)
+
+.PHONY: build test install run clean
+
+test:
+	swift test $(TEST_FLAGS)
 
 build:
 	swift build -c release --arch arm64
