@@ -17,6 +17,12 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let geoClient = GeoClient()
     private var geoTask: Task<Void, Never>?
 
+    // Status-bar geo flag, fetched per run independently of the menu's geoTask.
+    // statusFlag/currentMbps are the two data inputs renderStatus() composes.
+    private var statusGeoTask: Task<Void, Never>?
+    private var statusFlag: String?
+    private var currentMbps: Int?
+
     override init() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         idleIcon = NSImage(systemSymbolName: "speedometer", accessibilityDescription: "Speedlet")
@@ -33,6 +39,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
             // Monospaced digits so the title doesn't shimmy as values change.
             button.font = NSFont.monospacedDigitSystemFont(ofSize: 0, weight: .regular)
+            // Right-align the title so the trailing flag pins to the button's
+            // right edge; without this the title centres and the flag drifts as
+            // the digit count changes.
+            button.alignment = .right
         }
     }
 
@@ -141,9 +151,20 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     private func apply(_ state: SpeedTestState) {
         switch state {
-        case .idle:    showIdle()
-        case .starting: showStarting()
-        case .running(let mbps): showMbps(mbps)
+        case .idle:
+            // A late geo response must not paint a flag onto the idle icon.
+            statusGeoTask?.cancel()
+            statusGeoTask = nil
+            statusFlag = nil
+            currentMbps = nil
+            showIdle()
+        case .starting:
+            currentMbps = nil
+            startStatusGeo()   // fresh lookup per run, in parallel with the runner
+            renderStatus()
+        case .running(let mbps):
+            currentMbps = mbps
+            renderStatus()
         }
     }
 
@@ -151,14 +172,37 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         render(image: idleIcon, title: "", spinning: false)
     }
 
-    private func showStarting() {
-        // button.image stays set to a real SF Symbol so NSStatusBarButton sizes
-        // identically to idle; contentTintColor=.clear hides it under the overlay.
-        render(image: startingIcon, title: "", spinning: true)
+    // Compose the status item from the two data inputs. The flag, when present,
+    // is the trailing glyph: since the status bar pins the button's right edge
+    // and the button hugs its content, the flag sits a constant distance from the
+    // trailing edge — it stays put as digits grow to its left. With no datum yet,
+    // the spinner stands in at that same center; the first datum (flag or mbps)
+    // retires it for the run.
+    private func renderStatus() {
+        let digits = currentMbps.map(String.init) ?? ""
+        let flag = statusFlag ?? ""
+        if digits.isEmpty && flag.isEmpty {
+            // button.image stays a real SF Symbol so NSStatusBarButton sizes
+            // identically to idle; contentTintColor=.clear hides it under the overlay.
+            render(image: startingIcon, title: "", spinning: true)
+        } else {
+            let title = [digits, flag].filter { !$0.isEmpty }.joined(separator: " ")
+            render(image: nil, title: title, spinning: false)
+        }
     }
 
-    private func showMbps(_ mbps: Int) {
-        render(image: nil, title: "\(mbps)", spinning: false)
+    // Dedicated per-run geo lookup, separate from the menu's menuWillOpen fetch.
+    // Cancelled on return to .idle, so a late response is dropped (Task.isCancelled).
+    private func startStatusGeo() {
+        statusGeoTask?.cancel()
+        statusGeoTask = Task { [weak self] in
+            guard let self else { return }
+            let info = await self.geoClient.fetch()
+            if Task.isCancelled { return }
+            guard let flag = statusBarFlag(for: info?.countryCode) else { return }
+            self.statusFlag = flag
+            self.renderStatus()
+        }
     }
 
     private func render(image: NSImage?, title: String, spinning: Bool) {
