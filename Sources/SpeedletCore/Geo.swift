@@ -33,6 +33,15 @@ public func flagEmoji(for countryCode: String) -> String {
     return String(view)
 }
 
+/// Flag for the status bar: a real flag emoji for a valid 2-letter code, or
+/// `nil` for anything `flagEmoji` would resolve to the globe fallback. Unlike
+/// `flagEmoji`, the status bar wants flag-or-nothing (no `🌐` placeholder).
+public func statusBarFlag(for countryCode: String?) -> String? {
+    guard let countryCode else { return nil }
+    let flag = flagEmoji(for: countryCode)
+    return flag == fallbackFlag ? nil : flag
+}
+
 /// Text half of the geo row: `{country} · {ip}` (middle-dot separator). The
 /// flag renders separately in the row's icon gutter, so it's not included here.
 public func detailLine(_ info: GeoInfo) -> String {
