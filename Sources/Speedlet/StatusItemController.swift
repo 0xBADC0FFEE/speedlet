@@ -14,8 +14,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let geoItem = NSMenuItem()
     private let geoRow = GeoRowView()
     private let launchItem = NSMenuItem(title: "Launch at login", action: nil, keyEquivalent: "")
+    private let autoRunItem = NSMenuItem(title: "Auto-run on network change", action: nil, keyEquivalent: "")
     private let geoClient = GeoClient()
     private var geoTask: Task<Void, Never>?
+    private var monitor: NetworkChangeMonitor!
 
     // Status-bar geo flag, fetched per run independently of the menu's geoTask.
     // statusFlag/currentMbps are the two data inputs renderStatus() composes.
@@ -31,8 +33,20 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         startingIcon?.isTemplate = true
         super.init()
         runner = SpeedTestRunner(onState: { [weak self] state in self?.apply(state) })
+        // Auto-run reuses the manual runner, so the two paths cannot drift.
+        // The moment the path moves, restart at once (brief idle, then a fresh
+        // run — short gap, not the whole settle window). Refresh the flag only
+        // once the path settles, so geo reflects the final state (the new VPN
+        // server, not the transitional home country) instead of flashing it.
+        monitor = NetworkChangeMonitor(
+            onChangeBegan: { [weak self] in self?.runner.restart() },
+            onChangeSettled: { [weak self] in self?.startStatusGeo() }
+        )
         buildMenu()
         apply(.idle)
+        // Watch from launch only if the user opted in; a fresh launch on an
+        // existing connection seeds the baseline and stays quiet.
+        if AutoRunPreference.isEnabled { monitor.start() }
         if let button = statusItem.button {
             button.target = self
             button.action = #selector(didClick)
@@ -47,6 +61,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     func shutdown() {
+        monitor.stop()
         runner.stopAndWait()
     }
 
@@ -59,7 +74,12 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     private func toggleRunner() {
-        if runner.isRunning { runner.stop() } else { runner.start() }
+        if runner.isRunning {
+            runner.stop()
+        } else {
+            runner.start()
+            startStatusGeo()   // manual run looks up geo up front, in parallel
+        }
     }
 
     private func showContextMenu() {
@@ -97,6 +117,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         launchItem.offStateImage = gutter
         menu.addItem(launchItem)
 
+        autoRunItem.action = #selector(didTapAutoRun)
+        autoRunItem.target = self
+        autoRunItem.offStateImage = gutter
+        menu.addItem(autoRunItem)
+
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let about = NSMenuItem(title: "About Speedlet v\(version)", action: nil, keyEquivalent: "")
         about.isEnabled = false
@@ -115,6 +140,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     func menuWillOpen(_ menu: NSMenu) {
         launchItem.state = LaunchAtLogin.isEnabled ? .on : .off
+        autoRunItem.state = AutoRunPreference.isEnabled ? .on : .off
         geoRow.showLoading()
         // No cache: every open starts a fresh request. Live-update the row
         // when it returns (NSMenu reflects item changes while open).
@@ -145,6 +171,14 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         LaunchAtLogin.toggle()
     }
 
+    @objc private func didTapAutoRun() {
+        let enabled = !AutoRunPreference.isEnabled
+        AutoRunPreference.set(enabled)
+        // Turning off never disturbs a run already in flight — only future
+        // automatic runs stop.
+        if enabled { monitor.start() } else { monitor.stop() }
+    }
+
     @objc private func didTapQuit() {
         NSApp.terminate(nil)
     }
@@ -159,8 +193,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             currentMbps = nil
             showIdle()
         case .starting:
+            // Geo is triggered by the caller (manual start up front; auto-run on
+            // settle), not here — an auto-restart must not fetch geo against the
+            // transitional path and flash the wrong country.
             currentMbps = nil
-            startStatusGeo()   // fresh lookup per run, in parallel with the runner
             renderStatus()
         case .running(let mbps):
             currentMbps = mbps
