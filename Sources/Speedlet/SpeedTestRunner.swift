@@ -12,14 +12,18 @@ final class SpeedTestRunner {
     private var masterHandle: FileHandle?
     private var buffer = ""
     // Set by restart() before terminating a live run; the termination handler
-    // then re-launches instead of settling to .idle, so the auto-run always
-    // reflects the latest network rather than flickering through idle.
+    // then flashes idle and relaunches instead of just settling to idle.
     private var restartPending = false
     private let onState: (SpeedTestState) -> Void
 
     private static let downlinkRegex = try! NSRegularExpression(
         pattern: #"Downlink:?\s*capacity:?\s+([\d.]+)\s+Mbps"#
     )
+
+    // On restart, hold the idle icon this long before relaunching, so the stop
+    // reads as a clear visible beat (stop → idle → start) rather than a seamless
+    // swap. Tuning knob for how long the idle icon shows between runs.
+    private static let restartFlashDelay: TimeInterval = 0.3
 
     init(onState: @escaping (SpeedTestState) -> Void) {
         self.onState = onState
@@ -62,11 +66,14 @@ final class SpeedTestRunner {
                 self?.process = nil
                 self?.masterHandle = nil
                 self?.buffer = ""
+                self?.onState(.idle)
                 if self?.restartPending == true {
                     self?.restartPending = false
-                    self?.start()   // process is now nil, so start()'s guard passes
-                } else {
-                    self?.onState(.idle)
+                    // Show idle briefly, then relaunch (process is now nil, so
+                    // start()'s guard passes).
+                    DispatchQueue.main.asyncAfter(deadline: .now() + Self.restartFlashDelay) {
+                        self?.start()
+                    }
                 }
             }
         }
@@ -90,10 +97,10 @@ final class SpeedTestRunner {
         process?.terminate()
     }
 
-    /// Start a fresh run reflecting the current network. If a run is live, tear
-    /// it down first and let its termination handler re-launch (start() guards on
-    /// no live process, so termination must sequence before the new start); if
-    /// idle, start immediately.
+    /// Stop the live run (if any) and start a fresh one right after it exits,
+    /// with a brief visible idle in between. If idle, start immediately. Used by
+    /// auto-run so a network change swaps to a new test with a short, deliberate
+    /// gap rather than the full settle window.
     func restart() {
         guard let proc = process else {
             start()

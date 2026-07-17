@@ -2,31 +2,46 @@ import Foundation
 import Network
 import SpeedletCore
 
-/// Watches the system network path and fires `onChange` once the path settles
-/// after a real change. Dumb plumbing around the pure core (`PathFingerprint` /
-/// `evaluate`): builds a fingerprint per `NWPath` update, classifies the
-/// transition, and applies a trailing debounce. Holds no policy about what to do
-/// on change — that's the caller's `onChange`, invoked on the main queue.
+/// Watches the system network path and signals a change in two phases. Dumb
+/// plumbing around the pure core (`PathFingerprint` / `evaluate`): builds a
+/// fingerprint per `NWPath` update, classifies the transition, and on `.changed`
+/// fires `onChangeBegan` at once (leading edge of a burst), then `onChangeSettled`
+/// after the path goes quiet (trailing). Holds no policy — the caller decides
+/// what each phase means. Both closures run on the main queue.
+///
+/// Two phases because one user action surfaces as *several distinct* states and
+/// the right response differs per phase:
+/// - **Began** — the moment anything moves, so the caller can stop a stale run
+///   immediately (a VPN switch's first event is tunnel-down; keeping the old
+///   test alive through the settle window would show a stale reading).
+/// - **Settled** — once quiet, so the caller starts a fresh run against the
+///   *final* state. A server switch is tunnel-down (egress = home IP) then
+///   tunnel-up (egress = new server) ~770ms later; starting on settle means the
+///   run and its geo lookup reflect the new server, not the transitional
+///   home-country state.
 ///
 /// All monitor state lives on a single serial queue; `NWPathMonitor` delivers
 /// its callbacks there too, so the fingerprint, the previous snapshot, and the
-/// debounce timer share one isolation domain.
+/// settle timer share one isolation domain.
 final class NetworkChangeMonitor {
-    /// Trailing debounce window. A single connect emits a burst of path events,
-    /// and a VPN server switch tears the tunnel down and back up (~770ms spread
-    /// measured in the probe, #13); 1s of path-quiet coalesces either into one
-    /// run. Sits ~230ms above the observed switch spread — the one tuning knob:
-    /// widen it if a server switch ever yields a double run.
-    static let debounceInterval: TimeInterval = 1.0
+    /// Trailing settle window. Must exceed the gap between a single action's
+    /// phases, or `onChangeSettled` fires on the transitional state — the probe
+    /// (#13) measured a server switch's teardown→recreate spread ~770ms, so 1s
+    /// sits ~230ms above it. The one tuning knob: widen it if a switch still
+    /// settles on the old country (slow tunnel), shorten it for snappier
+    /// single-phase changes.
+    static let settleWindow: TimeInterval = 1.0
 
-    private let onChange: () -> Void
+    private let onChangeBegan: () -> Void
+    private let onChangeSettled: () -> Void
     private let queue = DispatchQueue(label: "dev.vawerv.speedlet.pathmonitor")
     private var monitor: NWPathMonitor?
     private var previous: PathFingerprint?
-    private var debounce: DispatchWorkItem?
+    private var settle: DispatchWorkItem?
 
-    init(onChange: @escaping () -> Void) {
-        self.onChange = onChange
+    init(onChangeBegan: @escaping () -> Void, onChangeSettled: @escaping () -> Void) {
+        self.onChangeBegan = onChangeBegan
+        self.onChangeSettled = onChangeSettled
     }
 
     /// Begin watching. The first callback seeds the baseline (`.baseline`) and
@@ -43,15 +58,15 @@ final class NetworkChangeMonitor {
         }
     }
 
-    /// Stop watching and drop any pending debounced fire. Does not touch a run
+    /// Stop watching and drop any pending settle fire. Does not touch a run
     /// already in flight — that's the caller's concern.
     func stop() {
         queue.async { [weak self] in
             guard let self else { return }
             self.monitor?.cancel()
             self.monitor = nil
-            self.debounce?.cancel()
-            self.debounce = nil
+            self.settle?.cancel()
+            self.settle = nil
         }
     }
 
@@ -62,13 +77,18 @@ final class NetworkChangeMonitor {
         previous = current
         guard change == .changed else { return }
 
-        debounce?.cancel()
-        let work = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            DispatchQueue.main.async { self.onChange() }
+        // No timer armed → this is the leading edge of a fresh burst.
+        if settle == nil {
+            DispatchQueue.main.async { [weak self] in self?.onChangeBegan() }
         }
-        debounce = work
-        queue.asyncAfter(deadline: .now() + Self.debounceInterval, execute: work)
+        // Re-arm on each change so the settle fires once, after the path quiets.
+        settle?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.settle = nil   // burst over; the next change is a new leading edge
+            DispatchQueue.main.async { self?.onChangeSettled() }
+        }
+        settle = work
+        queue.asyncAfter(deadline: .now() + Self.settleWindow, execute: work)
     }
 
     private func fingerprint(from path: NWPath) -> PathFingerprint {

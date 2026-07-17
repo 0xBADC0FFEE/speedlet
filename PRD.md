@@ -47,7 +47,7 @@ Fire-and-forget: no history is stored; after completion the result is dropped an
 - ─────
 - **Run test** — duplicates left click
 - **Launch at login** ☐ — toggle via `SMAppService.mainApp`
-- **Auto-run on network change** ☐ — opt-in, off by default (`UserDefaults`). While on, a `NWPathMonitor` watches the network path; a real change (VPN attach/detach, server switch, Wi-Fi roam) restarts the speed test after a 1s trailing debounce. Choice persists across relaunch.
+- **Auto-run on network change** ☐ — opt-in, off by default (`UserDefaults`). While on, a `NWPathMonitor` watches the network path; a real change (VPN attach/detach, server switch, Wi-Fi roam) restarts the speed test at once — brief idle, then a fresh run (short gap, not a full wait). The country flag is refreshed only once the path settles (trailing window), so geo reflects the final state (the new server) rather than flashing the transitional home country. Choice persists across relaunch.
 - **About Speedlet vX.Y** — disabled item with version
 - ─────
 - **Quit**

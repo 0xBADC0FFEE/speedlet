@@ -33,9 +33,15 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         startingIcon?.isTemplate = true
         super.init()
         runner = SpeedTestRunner(onState: { [weak self] state in self?.apply(state) })
-        // Auto-run reuses the manual runner via restart(), so the two paths
-        // cannot drift; the per-run geo lookup already refreshes the flag.
-        monitor = NetworkChangeMonitor(onChange: { [weak self] in self?.runner.restart() })
+        // Auto-run reuses the manual runner, so the two paths cannot drift.
+        // The moment the path moves, restart at once (brief idle, then a fresh
+        // run — short gap, not the whole settle window). Refresh the flag only
+        // once the path settles, so geo reflects the final state (the new VPN
+        // server, not the transitional home country) instead of flashing it.
+        monitor = NetworkChangeMonitor(
+            onChangeBegan: { [weak self] in self?.runner.restart() },
+            onChangeSettled: { [weak self] in self?.startStatusGeo() }
+        )
         buildMenu()
         apply(.idle)
         // Watch from launch only if the user opted in; a fresh launch on an
@@ -68,7 +74,12 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     private func toggleRunner() {
-        if runner.isRunning { runner.stop() } else { runner.start() }
+        if runner.isRunning {
+            runner.stop()
+        } else {
+            runner.start()
+            startStatusGeo()   // manual run looks up geo up front, in parallel
+        }
     }
 
     private func showContextMenu() {
@@ -182,8 +193,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             currentMbps = nil
             showIdle()
         case .starting:
+            // Geo is triggered by the caller (manual start up front; auto-run on
+            // settle), not here — an auto-restart must not fetch geo against the
+            // transitional path and flash the wrong country.
             currentMbps = nil
-            startStatusGeo()   // fresh lookup per run, in parallel with the runner
             renderStatus()
         case .running(let mbps):
             currentMbps = mbps
