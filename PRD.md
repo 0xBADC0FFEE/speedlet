@@ -47,6 +47,7 @@ Fire-and-forget: no history is stored; after completion the result is dropped an
 - ─────
 - **Run test** — duplicates left click
 - **Launch at login** ☐ — toggle via `SMAppService.mainApp`
+- **Auto-run on network change** ☐ — opt-in, off by default (`UserDefaults`). While on, a `NWPathMonitor` watches the network path; a real change (VPN attach/detach, server switch, Wi-Fi roam) restarts the speed test after a 1s trailing debounce. Choice persists across relaunch.
 - **About Speedlet vX.Y** — disabled item with version
 - ─────
 - **Quit**
@@ -56,7 +57,7 @@ Fire-and-forget: no history is stored; after completion the result is dropped an
 - `GET https://free.freeipapi.com/api/json` (no IP param → egress IP), no key, HTTPS. 5s timeout. No cache — each open is a fresh request, cancelled on menu close.
 - Decode `ipAddress` / `countryName` / `countryCode`; flag emoji derived locally from the code via regional-indicator arithmetic (globe fallback). `isProxy` ignored.
 - Loading row uses `NSProgressIndicator` (`.spinning`) in a custom menu-item view; its CoreAnimation keeps turning in the menu's event-tracking run loop mode.
-- **Privacy:** opening the menu issues one outbound HTTPS request to `free.freeipapi.com` carrying the egress IP.
+- **Privacy:** opening the menu issues one outbound HTTPS request to `free.freeipapi.com` carrying the egress IP. With **Auto-run on network change** on, each detected network change also triggers one automatic request (via the per-run geo lookup); default-off preserves the "only on menu open" invariant. Debounced + opt-in, so volume stays well under freeipapi's 60/min limit.
 
 ## Technical decisions
 
@@ -66,6 +67,7 @@ Fire-and-forget: no history is stored; after completion the result is dropped an
 - AppKit: `NSStatusItem` + `NSMenu` (not `MenuBarExtra` — need separate handlers for left/right click)
 - `Foundation.Process` + `openpty(3)` pty slave for live stdout streaming (networkQuality only emits progressive lines when stdout is a tty)
 - `ServiceManagement.SMAppService.mainApp` for autostart
+- `Network.NWPathMonitor` for network-change detection (opt-in auto-run); the "what counts as a change" rule is a pure, unit-tested value type in `SpeedletCore`
 - Min target: macOS 15.0 (required for `.rotate` symbol effect on the starting spinner)
 - Arch: `arm64` only
 
@@ -135,7 +137,6 @@ Gatekeeper does not trigger because the bundle is not tagged `com.apple.quaranti
 
 ## Non-goals (explicitly out of scope)
 
-- Auto-trigger on VPN / public IP change
 - Test history
 - Display of upload / RPM / RTT / interface
 - Separate settings window or preferences pane

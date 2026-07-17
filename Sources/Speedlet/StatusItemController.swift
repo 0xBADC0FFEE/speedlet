@@ -14,8 +14,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let geoItem = NSMenuItem()
     private let geoRow = GeoRowView()
     private let launchItem = NSMenuItem(title: "Launch at login", action: nil, keyEquivalent: "")
+    private let autoRunItem = NSMenuItem(title: "Auto-run on network change", action: nil, keyEquivalent: "")
     private let geoClient = GeoClient()
     private var geoTask: Task<Void, Never>?
+    private var monitor: NetworkChangeMonitor!
 
     // Status-bar geo flag, fetched per run independently of the menu's geoTask.
     // statusFlag/currentMbps are the two data inputs renderStatus() composes.
@@ -31,8 +33,14 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         startingIcon?.isTemplate = true
         super.init()
         runner = SpeedTestRunner(onState: { [weak self] state in self?.apply(state) })
+        // Auto-run reuses the manual runner via restart(), so the two paths
+        // cannot drift; the per-run geo lookup already refreshes the flag.
+        monitor = NetworkChangeMonitor(onChange: { [weak self] in self?.runner.restart() })
         buildMenu()
         apply(.idle)
+        // Watch from launch only if the user opted in; a fresh launch on an
+        // existing connection seeds the baseline and stays quiet.
+        if AutoRunPreference.isEnabled { monitor.start() }
         if let button = statusItem.button {
             button.target = self
             button.action = #selector(didClick)
@@ -47,6 +55,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     func shutdown() {
+        monitor.stop()
         runner.stopAndWait()
     }
 
@@ -97,6 +106,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         launchItem.offStateImage = gutter
         menu.addItem(launchItem)
 
+        autoRunItem.action = #selector(didTapAutoRun)
+        autoRunItem.target = self
+        autoRunItem.offStateImage = gutter
+        menu.addItem(autoRunItem)
+
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let about = NSMenuItem(title: "About Speedlet v\(version)", action: nil, keyEquivalent: "")
         about.isEnabled = false
@@ -115,6 +129,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     func menuWillOpen(_ menu: NSMenu) {
         launchItem.state = LaunchAtLogin.isEnabled ? .on : .off
+        autoRunItem.state = AutoRunPreference.isEnabled ? .on : .off
         geoRow.showLoading()
         // No cache: every open starts a fresh request. Live-update the row
         // when it returns (NSMenu reflects item changes while open).
@@ -143,6 +158,14 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     @objc private func didTapLaunchAtLogin() {
         LaunchAtLogin.toggle()
+    }
+
+    @objc private func didTapAutoRun() {
+        let enabled = !AutoRunPreference.isEnabled
+        AutoRunPreference.set(enabled)
+        // Turning off never disturbs a run already in flight — only future
+        // automatic runs stop.
+        if enabled { monitor.start() } else { monitor.stop() }
     }
 
     @objc private func didTapQuit() {

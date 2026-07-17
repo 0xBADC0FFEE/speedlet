@@ -11,6 +11,10 @@ final class SpeedTestRunner {
     private var process: Process?
     private var masterHandle: FileHandle?
     private var buffer = ""
+    // Set by restart() before terminating a live run; the termination handler
+    // then re-launches instead of settling to .idle, so the auto-run always
+    // reflects the latest network rather than flickering through idle.
+    private var restartPending = false
     private let onState: (SpeedTestState) -> Void
 
     private static let downlinkRegex = try! NSRegularExpression(
@@ -58,7 +62,12 @@ final class SpeedTestRunner {
                 self?.process = nil
                 self?.masterHandle = nil
                 self?.buffer = ""
-                self?.onState(.idle)
+                if self?.restartPending == true {
+                    self?.restartPending = false
+                    self?.start()   // process is now nil, so start()'s guard passes
+                } else {
+                    self?.onState(.idle)
+                }
             }
         }
 
@@ -79,6 +88,19 @@ final class SpeedTestRunner {
 
     func stop() {
         process?.terminate()
+    }
+
+    /// Start a fresh run reflecting the current network. If a run is live, tear
+    /// it down first and let its termination handler re-launch (start() guards on
+    /// no live process, so termination must sequence before the new start); if
+    /// idle, start immediately.
+    func restart() {
+        guard let proc = process else {
+            start()
+            return
+        }
+        restartPending = true
+        proc.terminate()
     }
 
     func stopAndWait() {
