@@ -1,0 +1,47 @@
+name: Release
+
+# On every push to main, semantic-release analyzes Conventional Commits and,
+# when a release is warranted, bumps Info.plist, builds + packages the app,
+# writes CHANGELOG.md, commits the bump back to main, and publishes a GitHub
+# Release with the .app zip attached. The `[skip ci]` in the release commit
+# stops it from triggering a second run.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# Serialize releases so a burst of merges can't tag/push concurrently.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write        # push the bump commit + tag, create the release
+  issues: write          # semantic-release comments on released issues/PRs
+  pull-requests: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # @semantic-release/git authenticates via GITHUB_TOKEN itself; leaving
+          # checkout credentials persisted would shadow that on protected main.
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: cycjimmy/semantic-release-action@v6
+        env:
+          # Protected main needs a PAT (contents+PR write) as SEMANTIC_RELEASE_PAT;
+          # falls back to GITHUB_TOKEN when the branch is unprotected.
+          GITHUB_TOKEN: ${{ secrets.SEMANTIC_RELEASE_PAT || secrets.GITHUB_TOKEN }}
+        with:
+          extra_plugins: |
+            @semantic-release/changelog
+            @semantic-release/exec
+            @semantic-release/git
